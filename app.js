@@ -7,27 +7,20 @@
 // ⚠️ ใส่ Firebase config ของคุณตรงนี้เพื่อให้ข้อมูลเป็นข้อมูลเดียวกันทุกเครื่อง
 // ไปที่ https://console.firebase.google.com → สร้างโปรเจกต์ → Realtime Database → Copy config
 const firebaseConfig = {
-  apiKey: "AIzaSyB9AMGsaEhRqrZ-gZBlD8Ku3b84RvslufI",
-  authDomain: "tub1money.firebaseapp.com",
-  databaseURL: "https://tub1money-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "tub1money",
-  storageBucket: "tub1money.firebasestorage.app",
-  messagingSenderId: "493848795659",
-  appId: "1:493848795659:web:9871ae7dd5fcbef2fec50e",
-  measurementId: "G-8WCXBLN8V0"
+    apiKey: "AIzaSyB9AMGsaEhRqrZ-gZBlD8Ku3b84RvslufI",
+    authDomain: "tub1money.firebaseapp.com",
+    databaseURL: "https://tub1money-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "tub1money",
+    storageBucket: "tub1money.firebasestorage.app",
+    messagingSenderId: "493848795659",
+    appId: "1:493848795659:web:9871ae7dd5fcbef2fec50e",
+    measurementId: "G-8WCXBLN8V0"
 };
 
-
-// เช็คว่า config เป็นจริงหรือยังเป็น placeholder
-const FIREBASE_READY = !FIREBASE_CONFIG.apiKey.includes("YOUR_");
-
-let db = null;
-if (FIREBASE_READY) {
-    firebase.initializeApp(FIREBASE_CONFIG);
-    db = firebase.database();
-} else {
-    console.warn("⚠️ Firebase config ยังไม่ได้ตั้งค่า — ใช้ localStorage แทน (ข้อมูลจะไม่ sync ข้ามเครื่อง)");
-}
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const FIREBASE_READY = true;
 
 // ==================== LOCALSTORAGE FALLBACK ====================
 const LS = {
