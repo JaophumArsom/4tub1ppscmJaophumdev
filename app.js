@@ -24,7 +24,7 @@ const FIREBASE_READY = true;
 
 // ==================== LOCALSTORAGE FALLBACK ====================
 const LS = {
-    KEYS: { STUDENTS: 'classroom_students', SETTINGS: 'classroom_settings', ROUNDS: 'classroom_rounds', QR_IMAGE: 'classroom_qr_image' },
+    KEYS: { ฟSTUDENTS: 'classroom_students', SETTINGS: 'classroom_settings', ROUNDS: 'classroom_rounds', QR_IMAGE: 'classroom_qr_image' },
     get(k) { const d = localStorage.getItem(k); return d ? JSON.parse(d) : null; },
     set(k, v) { localStorage.setItem(k, JSON.stringify(v)); },
     remove(k) { localStorage.removeItem(k); },
@@ -175,8 +175,19 @@ const ADMIN_CREDENTIALS = {
     password: '1234',
 };
 
-// Current user stored in memory (not localStorage)
+// Current user stored in sessionStorage (persists across refresh, cleared on tab close)
 let currentUser = null;
+
+function saveSession() {
+    if (currentUser) sessionStorage.setItem('classroom_session', JSON.stringify(currentUser));
+    else sessionStorage.removeItem('classroom_session');
+}
+
+function loadSession() {
+    const raw = sessionStorage.getItem('classroom_session');
+    if (raw) { try { currentUser = JSON.parse(raw); return true; } catch(e) { sessionStorage.removeItem('classroom_session'); } }
+    return false;
+}
 
 function handleAdminLogin(e) {
     e.preventDefault();
@@ -185,6 +196,7 @@ function handleAdminLogin(e) {
     const errorDiv = document.getElementById('loginError');
     if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
         currentUser = { type: 'admin', username: 'Admin001' };
+        saveSession();
         showToast('เข้าสู่ระบบสำเร็จ! ยินดีต้อนรับ Admin', 'success');
         showPage('adminPage');
         renderAdminDashboard();
@@ -206,6 +218,7 @@ function handleUserLogin(e) {
     DB.findStudentByLoginId(loginId).then(student => {
         if (student) {
             currentUser = { type: 'user', studentId: student.id, loginId: loginId };
+            saveSession();
             showToast(`เข้าสู่ระบบสำเร็จ! สวัสดี ${student.name}`, 'success');
             showPage('userPage');
             renderUserDashboard();
@@ -218,6 +231,7 @@ function handleUserLogin(e) {
 
 function logout() {
     currentUser = null;
+    saveSession();
     showPage('loginPage');
     document.getElementById('adminUsername').value = '';
     document.getElementById('adminPassword').value = '';
@@ -732,6 +746,17 @@ function clearAllData() {
 
 // ==================== INITIALIZATION ====================
 function init() {
+    // Restore session on page load
+    if (loadSession()) {
+        if (currentUser.type === 'admin') {
+            showPage('adminPage');
+            renderAdminDashboard();
+        } else if (currentUser.type === 'user') {
+            showPage('userPage');
+            renderUserDashboard();
+        }
+    }
+
     const statusEl = document.getElementById('connectionStatus');
     if (FIREBASE_READY) {
         db.ref('.info/connected').on('value', snap => {
