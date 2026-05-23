@@ -52,7 +52,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
                     </svg>
                 </div>
-                <h1 class="text-2xl font-bold text-gray-800">ระบบเก็บเงินห้อง 4/1</h1>
+                <h1 class="text-2xl font-bold text-gray-800">ระบบเก็บเงินห้อง ม.4/1</h1>
                 <p class="text-xs text-primary font-medium mt-0.5">by Phum & Kong</p>
                 <p class="text-gray-400 mt-2 text-sm">กรุณาเลือกประเภทผู้ใช้เพื่อเข้าสู่ระบบ</p>
             </div>
@@ -105,7 +105,7 @@
     <div id="adminPage" class="hidden min-h-screen pb-8">
         <!-- Top Nav -->
         <nav class="bg-white/80 backdrop-blur-lg border-b border-gray-100 sticky top-0 z-50">
-            <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between flex-wrap gap-2">
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-10 bg-gradient-to-br from-primary to-purple-600 rounded-xl flex items-center justify-center card-shadow">
                         <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -118,6 +118,13 @@
                     </div>
                 </div>
                 <div class="flex items-center gap-1.5">
+                    <button onclick="toggleCollection()" id="collectionToggleBtn" class="px-3 py-2 text-sm rounded-xl transition-all flex items-center gap-1.5 btn-press"></button>
+                    <button onclick="openJsonEditor()" class="px-3 py-2 text-sm text-indigo-500 hover:bg-indigo-50 rounded-xl transition-all flex items-center gap-1.5 btn-press">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                        </svg>
+                        <span class="hidden sm:inline">แก้ไข JSON</span>
+                    </button>
                     <button onclick="resetAllPayments()" id="resetPaymentsBtn" class="px-3 py-2 text-sm text-amber-600 hover:bg-amber-50 rounded-xl transition-all flex items-center gap-1.5 btn-press">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
@@ -142,7 +149,7 @@
 
         <div class="max-w-7xl mx-auto p-4 space-y-6">
             <!-- Stats Cards -->
-            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
                 <div class="stat-card bg-white rounded-2xl p-4 card-shadow border border-gray-100/50">
                     <div class="flex items-center gap-3">
                         <div class="w-11 h-11 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center card-shadow">
@@ -195,6 +202,32 @@
                         </div>
                     </div>
                 </div>
+                <div class="stat-card bg-white rounded-2xl p-4 card-shadow border border-gray-100/50">
+                    <div class="flex items-center gap-3">
+                        <div class="w-11 h-11 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center card-shadow">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-[11px] text-gray-400 font-medium">เงินที่ต้องจ่าย</p>
+                            <p id="statTotalOwed" class="text-xl font-bold text-violet-600">0</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="stat-card bg-white rounded-2xl p-4 card-shadow border border-gray-100/50">
+                    <div class="flex items-center gap-3">
+                        <div class="w-11 h-11 bg-gradient-to-br from-teal-400 to-cyan-600 rounded-xl flex items-center justify-center card-shadow">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-[11px] text-gray-400 font-medium">เงินรวมที่จ่ายแล้ว</p>
+                            <p id="statTotalCollected" class="text-xl font-bold text-teal-600">0</p>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Settings & Add Student Row -->
@@ -213,7 +246,7 @@
                     <form onsubmit="saveRoomSettings(event)" class="space-y-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-600 mb-1.5">จำนวนเงินมาตรฐาน (บาท)</label>
-                            <input type="number" id="roomAmount" placeholder="เช่น 50" min="1"
+                            <input type="number" id="roomAmount" placeholder="5" min="1"
                                 class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all text-lg">
                             <p class="text-xs text-gray-400 mt-1.5">จำนวนเงินนี้เป็นค่าเริ่มต้นสำหรับสมาชิกทุกคน (สามารถกำหนดรายคนได้)</p>
                         </div>
@@ -259,15 +292,23 @@
                         </div>
                         เพิ่มรายชื่อสมาชิก
                     </h2>
-                    <form onsubmit="addStudent(event)" class="space-y-4">
+
+                    <!-- Tab: Single / Batch -->
+                    <div class="flex bg-gray-100 rounded-xl p-1 mb-4">
+                        <button type="button" onclick="switchAddMode('single')" id="tabSingle" class="flex-1 py-2 rounded-lg text-sm font-medium transition-all bg-white card-shadow text-secondary">เพิ่มทีละคน</button>
+                        <button type="button" onclick="switchAddMode('batch')" id="tabBatch" class="flex-1 py-2 rounded-lg text-sm font-medium transition-all text-gray-400 hover:text-gray-600">สร้างหลายคน</button>
+                    </div>
+
+                    <!-- Single Add -->
+                    <form id="singleAddForm" onsubmit="addStudent(event)" class="space-y-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-600 mb-1.5">ชื่อเล่น</label>
-                            <input type="text" id="studentName" placeholder="ภูมิ" required
+                            <label class="block text-sm font-medium text-gray-600 mb-1.5">ชื่อจริง</label>
+                            <input type="text" id="studentName" placeholder="ก้องภพ ธนูชาญ" required
                                 class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-secondary/40 focus:border-secondary transition-all">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-600 mb-1.5">เลขที่</label>
-                            <input type="number" id="studentNumber" placeholder="เช่น 1" min="1" required
+                            <input type="number" id="studentNumber" placeholder="7" min="1" required
                                 class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-secondary/40 focus:border-secondary transition-all">
                         </div>
                         <div>
@@ -277,6 +318,31 @@
                         </div>
                         <button type="submit" class="w-full bg-gradient-to-r from-secondary to-emerald-500 text-white py-3 rounded-xl font-medium hover:shadow-lg hover:shadow-secondary/25 transition-all btn-press">
                             ➕ เพิ่มสมาชิก
+                        </button>
+                    </form>
+
+                    <!-- Batch Add -->
+                    <form id="batchAddForm" onsubmit="addBatchStudents(event)" class="space-y-4 hidden">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 mb-1.5">สร้างสมาชิกตั้งแต่เลขที่</label>
+                            <div class="flex gap-3">
+                                <div class="flex-1">
+                                    <input type="number" id="batchStart" placeholder="เริ่ม" min="1" max="99" value="1"
+                                        class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-secondary/40 focus:border-secondary transition-all text-center text-lg">
+                                </div>
+                                <span class="flex items-center text-gray-400 font-bold">—</span>
+                                <div class="flex-1">
+                                    <input type="number" id="batchEnd" placeholder="ถึง" min="1" max="99" value="40"
+                                        class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-secondary/40 focus:border-secondary transition-all text-center text-lg">
+                                </div>
+                            </div>
+                            <p class="text-xs text-gray-400 mt-1.5">ระบบจะสร้างสมาชิกเป็น "ว่างๆ" ให้ คุณสามารถแก้ไขชื่อและเลขประจำตัวทีหลังได้</p>
+                        </div>
+                        <div class="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                            <p class="text-xs text-blue-600">💡 สมาชิกที่สร้างจะมีสถานะ "ยังไม่จ่าย" และยังไม่มีชื่อ/เลขประจำตัว — คุณสามารถคลิกปุ่ม ✏️ ในตารางเพื่อแก้ไขข้อมูลแต่ละคนได้</p>
+                        </div>
+                        <button type="submit" class="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-3 rounded-xl font-medium hover:shadow-lg hover:shadow-blue-25 transition-all btn-press">
+                            📋 สร้างสมาชิกหลายคน
                         </button>
                     </form>
                 </div>
@@ -442,6 +508,39 @@
         </div>
     </div>
 
+    <!-- ==================== MODAL: Edit Student ==================== -->
+    <div id="editStudentModal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full fade-in p-6 card-shadow-lg">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-gray-800">แก้ไขข้อมูลสมาชิก</h3>
+                <button onclick="closeEditStudentModal()" class="w-8 h-8 rounded-xl hover:bg-gray-100 flex items-center justify-center transition-all">
+                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-600 mb-1.5">เลขที่</label>
+                    <input type="number" id="editStuNumber" min="1"
+                        class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-secondary/40 focus:border-secondary transition-all text-center">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-600 mb-1.5">ชื่อเล่น</label>
+                    <input type="text" id="editStuName" placeholder="ภูมิ"
+                        class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-secondary/40 focus:border-secondary transition-all">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-600 mb-1.5">เลขประจำตัวนักเรียน (5 หลัก)</label>
+                    <input type="text" id="editStuLoginId" maxlength="5" placeholder="36000"
+                        class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-secondary/40 focus:border-secondary transition-all text-center text-xl tracking-[0.3em] font-mono">
+                </div>
+            </div>
+            <div class="flex gap-3 mt-6">
+                <button onclick="closeEditStudentModal()" class="flex-1 py-3 bg-gray-100 text-gray-500 rounded-xl font-medium hover:bg-gray-200 transition-all btn-press">ยกเลิก</button>
+                <button onclick="saveEditStudent()" class="flex-1 py-3 bg-secondary text-white rounded-xl font-medium hover:bg-secondary/90 transition-all btn-press">💾 บันทึก</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ==================== MODAL: Slip Preview ==================== -->
     <div id="slipModal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-auto card-shadow-lg fade-in">
@@ -460,6 +559,9 @@
             <div class="p-4 border-t border-gray-100 flex gap-3">
                 <button onclick="verifyPayment()" id="verifyBtn" class="flex-1 bg-emerald-500 text-white py-3 rounded-xl font-medium hover:bg-emerald-600 transition-all btn-press">
                     ✅ ตรวจสอบถูกต้อง
+                </button>
+                <button onclick="rejectPayment()" id="rejectBtn" class="flex-1 bg-red-500 text-white py-3 rounded-xl font-medium hover:bg-red-600 transition-all btn-press">
+                    ❌ สลิปไม่ถูกต้อง
                 </button>
                 <button onclick="closeSlipModal()" class="px-6 py-3 bg-gray-100 text-gray-500 rounded-xl font-medium hover:bg-gray-200 transition-all btn-press">
                     ปิด
@@ -540,6 +642,61 @@
         </div>
     </div>
 
+    <!-- ==================== MODAL: JSON Editor ==================== -->
+    <div id="jsonModal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden card-shadow-lg fade-in flex flex-col">
+            <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
+                        <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-gray-800">แก้ไขข้อมูลสมาชิก (JSON)</h3>
+                        <p class="text-xs text-gray-400">แก้ไขข้อมูล JSON โดยตรง — กดบันทึกเพื่อบันทึกลงฐานข้อมูล</p>
+                    </div>
+                </div>
+                <button onclick="closeJsonEditor()" class="w-8 h-8 rounded-xl hover:bg-gray-100 flex items-center justify-center transition-all">
+                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-4 flex-1 overflow-auto">
+                <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 flex items-start gap-2">
+                    <svg class="w-4 h-4 text-amber-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                    </svg>
+                    <p class="text-xs text-amber-700">ระวัง: การแก้ไข JSON ผิดรูปแบบอาจทำให้ข้อมูลเสียหาย ควรตรวจสอบ JSON ให้ถูกต้องก่อนบันทึก</p>
+                </div>
+                <textarea id="jsonEditorArea" rows="20"
+                    class="w-full px-4 py-3 bg-gray-900 text-green-400 font-mono text-sm rounded-xl border border-gray-700 focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all resize-none leading-relaxed"
+                    spellcheck="false"></textarea>
+                <div id="jsonError" class="hidden mt-2 p-2 bg-red-50 border border-red-200 rounded-lg text-red-500 text-xs"></div>
+            </div>
+            <div class="p-4 border-t border-gray-100 flex items-center justify-between">
+                <button onclick="downloadJson()" class="px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-100 rounded-xl transition-all flex items-center gap-1.5 btn-press">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                    ดาวน์โหลด JSON
+                </button>
+                <div class="flex gap-3">
+                    <button onclick="closeJsonEditor()" class="px-5 py-2.5 bg-gray-100 text-gray-500 rounded-xl font-medium hover:bg-gray-200 transition-all btn-press">
+                        ยกเลิก
+                    </button>
+                    <button onclick="saveJsonData()" class="px-5 py-2.5 bg-primary text-white rounded-xl font-medium hover:bg-primary/90 transition-all btn-press flex items-center gap-1.5">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        บันทึก
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Connection Status -->
     <div id="connectionStatus" class="fixed bottom-4 left-4 z-[100] px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 flex items-center gap-1.5 card-shadow">
         <span class="w-2 h-2 rounded-full bg-gray-400 pulse-dot"></span> กำลังเชื่อมต่อ...
@@ -550,6 +707,6 @@
         <div id="toastContent" class="px-5 py-3 rounded-xl card-shadow-lg text-white font-medium fade-in"></div>
     </div>
 
-    <script src="app.js?v=3"></script>
+    <script src="app.js?v=5"></script>
 </body>
 </html>
