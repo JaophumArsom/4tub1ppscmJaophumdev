@@ -202,6 +202,7 @@ function handleAdminLogin(e) {
         showToast('เข้าสู่ระบบสำเร็จ! ยินดีต้อนรับ Admin', 'success');
         showPage('adminPage');
         renderAdminDashboard();
+        startAdminRealTimeSync();
     } else {
         errorDiv.textContent = '❌ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
         errorDiv.classList.remove('hidden');
@@ -224,6 +225,7 @@ function handleUserLogin(e) {
             showToast(`เข้าสู่ระบบสำเร็จ! สวัสดี ${student.name}`, 'success');
             showPage('userPage');
             renderUserDashboard();
+            startUserRealTimeSync();
         } else {
             errorDiv.textContent = '❌ ไม่พบเลขประจำตัวนี้ในระบบ กรุณาติดต่อหัวหน้าห้อง';
             errorDiv.classList.remove('hidden');
@@ -232,6 +234,7 @@ function handleUserLogin(e) {
 }
 
 function logout() {
+    stopAllSync();
     currentUser = null;
     saveSession();
     showPage('loginPage');
@@ -964,22 +967,115 @@ function clearAllData() {
     }
 }
 
+
+// ==================== AUTO-REFRESH & MANUAL REFRESH SYSTEM ====================
+let adminListener = null;
+let adminSettingsListener = null;
+let userStudentListener = null;
+let userSettingsListener = null;
+let pollingInterval = null;
+
+function updateLastRefreshTime() {
+    const now = new Date();
+    const hh = now.getHours().toString().padStart(2, '0');
+    const mm = now.getMinutes().toString().padStart(2, '0');
+    const ss = now.getSeconds().toString().padStart(2, '0');
+    const text = hh + ':' + mm + ':' + ss;
+    const el1 = document.getElementById('lastRefreshTime');
+    const el2 = document.getElementById('lastRefreshTimeUser');
+    if (el1) el1.textContent = text;
+    if (el2) el2.textContent = text;
+}
+
+function animateRefreshIcon() {
+    ['refreshIcon', 'refreshIconUser'].forEach(function(id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.remove('spin');
+        void el.offsetWidth;
+        el.classList.add('spin');
+        setTimeout(function() { el.classList.remove('spin'); }, 650);
+    });
+}
+
+function manualRefresh() {
+    const btn1 = document.getElementById('manualRefreshBtn');
+    const btn2 = document.getElementById('manualRefreshBtnUser');
+    [btn1, btn2].forEach(function(b) { if (b) b.disabled = true; });
+    animateRefreshIcon();
+    let task;
+    if (currentUser && currentUser.type === 'admin') task = renderAdminDashboard();
+    else if (currentUser && currentUser.type === 'user') task = renderUserDashboard();
+    else task = Promise.resolve();
+    Promise.resolve(task).then(function() {
+        updateLastRefreshTime();
+        showToast('🔄 รีเฟรชข้อมูลแล้ว', 'info');
+    }).catch(function() {}).finally(function() {
+        setTimeout(function() {
+            [btn1, btn2].forEach(function(b) { if (b) b.disabled = false; });
+        }, 800);
+    });
+}
+
+function startAdminRealTimeSync() {
+    stopAllSync();
+    if (!FIREBASE_READY) { startPolling(); return; }
+    adminListener = db.ref('students').on('value', function() {
+        if (currentUser && currentUser.type === 'admin') { renderAdminDashboard(); updateLastRefreshTime(); }
+    });
+    adminSettingsListener = db.ref('settings').on('value', function() {
+        if (currentUser && currentUser.type === 'admin') { updateCollectionBtn(); updateStats(); updateLastRefreshTime(); }
+    });
+}
+
+function startUserRealTimeSync() {
+    stopAllSync();
+    if (!FIREBASE_READY || !currentUser) { startPolling(); return; }
+    userStudentListener = db.ref('students/' + currentUser.studentId).on('value', function() {
+        if (currentUser && currentUser.type === 'user') { renderUserDashboard(); updateLastRefreshTime(); }
+    });
+    userSettingsListener = db.ref('settings').on('value', function() {
+        if (currentUser && currentUser.type === 'user') { renderUserDashboard(); updateLastRefreshTime(); }
+    });
+}
+
+function startPolling() {
+    if (pollingInterval) clearInterval(pollingInterval);
+    pollingInterval = setInterval(function() {
+        if (!currentUser) return;
+        if (currentUser.type === 'admin') renderAdminDashboard();
+        else if (currentUser.type === 'user') renderUserDashboard();
+        updateLastRefreshTime();
+    }, 30000);
+}
+
+function stopAllSync() {
+    if (adminListener) { db.ref('students').off('value', adminListener); adminListener = null; }
+    if (adminSettingsListener) { db.ref('settings').off('value', adminSettingsListener); adminSettingsListener = null; }
+    if (userStudentListener && currentUser) { db.ref('students/' + currentUser.studentId).off('value', userStudentListener); userStudentListener = null; }
+    if (userSettingsListener) { db.ref('settings').off('value', userSettingsListener); userSettingsListener = null; }
+    if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
+}
+
 // ==================== INITIALIZATION ====================
 function init() {
-    // Restore session on page load
     if (loadSession()) {
         if (currentUser.type === 'admin') {
             showPage('adminPage');
             renderAdminDashboard();
+            startAdminRealTimeSync();
+            updateLastRefreshTime();
         } else if (currentUser.type === 'user') {
             showPage('userPage');
             renderUserDashboard();
+            startUserRealTimeSync();
+            updateLastRefreshTime();
         }
     }
 
     const statusEl = document.getElementById('connectionStatus');
     if (FIREBASE_READY) {
-        db.ref('.info/connected').on('value', snap => {
+        db.ref('.info/connected').on('value', function(snap) {
             if (statusEl) {
                 if (snap.val() === true) {
                     statusEl.className = 'fixed bottom-4 left-4 z-[100] px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-600 flex items-center gap-1.5 card-shadow';
