@@ -46,7 +46,7 @@ const DB = {
     },
     addStudent(student) {
         student.id = Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
-        student.status = 'unpaid'; student.slipImage = null; student.bankInfo = null; student.paidAt = null; student.customAmount = null;
+        student.status = 'unpaid'; student.bankInfo = null; student.paidAt = null; student.customAmount = null;
         if (FIREBASE_READY) return db.ref('students/' + student.id).set(student).then(() => student);
         return this.getStudents().then(list => { list.push(student); LS.set(LS.KEYS.STUDENTS, list); return student; });
     },
@@ -68,12 +68,35 @@ const DB = {
 
     // --- Settings ---
     getSettings() {
-        if (FIREBASE_READY) return db.ref('settings').once('value').then(snap => snap.val() || { amount: 0 });
-        return Promise.resolve(LS.get(LS.KEYS.SETTINGS) || { amount: 0 });
+        if (FIREBASE_READY) return db.ref('settings').once('value').then(snap => snap.val() || { amount: 0, collectionActive: false });
+        return Promise.resolve(LS.get(LS.KEYS.SETTINGS) || { amount: 0, collectionActive: false });
     },
     saveSettings(settings) {
         if (FIREBASE_READY) return db.ref('settings').set(settings);
         return Promise.resolve(LS.set(LS.KEYS.SETTINGS, settings));
+    },
+    isCollectionActive() {
+        return this.getSettings().then(s => !!s.collectionActive);
+    },
+    setCollectionActive(active) {
+        return this.getSettings().then(s => {
+            s.collectionActive = active;
+            return this.saveSettings(s);
+        });
+    },
+
+    // --- Slip Image (stored separately from student data) ---
+    getSlipImage(studentId) {
+        if (FIREBASE_READY) return db.ref('slipImages/' + studentId).once('value').then(snap => snap.val() || null);
+        return Promise.resolve(LS.get('slip_' + studentId) || null);
+    },
+    saveSlipImage(studentId, base64) {
+        if (FIREBASE_READY) return db.ref('slipImages/' + studentId).set(base64);
+        return Promise.resolve(LS.set('slip_' + studentId, base64));
+    },
+    removeSlipImage(studentId) {
+        if (FIREBASE_READY) return db.ref('slipImages/' + studentId).remove();
+        return Promise.resolve(LS.remove('slip_' + studentId));
     },
 
     // --- QR Image ---
@@ -92,12 +115,12 @@ const DB = {
 
     // --- Stats ---
     getStats() {
-        return this.getStudents().then(list => ({
-            total: list.length,
-            paid: list.filter(s => s.status === 'paid' || s.status === 'cash').length,
-            pending: list.filter(s => s.status === 'pending').length,
-            unpaid: list.filter(s => s.status === 'unpaid').length,
-        }));
+        return this.getStudents().then(list => {
+            const paid = list.filter(s => s.status === 'paid' || s.status === 'cash');
+            const pending = list.filter(s => s.status === 'pending');
+            const unpaid = list.filter(s => s.status === 'unpaid');
+            return { list, total: list.length, paid: paid.length, pending: pending.length, unpaid: unpaid.length };
+        });
     },
 
     getStudentAmount(student) {
@@ -202,7 +225,7 @@ function handleUserLogin(e) {
             showPage('userPage');
             renderUserDashboard();
         } else {
-            errorDiv.textContent = '❌ ไม่พบเลขประจำตัวนี้ในระบบ กรุณาติดต่อแอดมิน';
+            errorDiv.textContent = '❌ ไม่พบเลขประจำตัวนี้ในระบบ กรุณาติดต่อหัวหน้าห้อง';
             errorDiv.classList.remove('hidden');
         }
     });
@@ -219,12 +242,61 @@ function logout() {
     showToast('ออกจากระบบแล้ว', 'info');
 }
 
+// ==================== COLLECTION TOGGLE ====================
+function toggleCollection() {
+    DB.getSettings().then(settings => {
+        const newState = !settings.collectionActive;
+        DB.setCollectionActive(newState).then(() => {
+            updateCollectionBtn();
+            if (newState) {
+                showToast('✅ เปิดระบบเรียกเก็บเงินแล้ว — สมาชิกสามารถจ่ายเงินได้', 'success');
+            } else {
+                showToast('⏸️ ปิดระบบเรียกเก็บเงินแล้ว — สมาชิกจะเห็นข้อความ "ยังไม่มีการเรียกเก็บเงิน"', 'info');
+            }
+        });
+    });
+}
+
+function updateCollectionBtn() {
+    DB.getSettings().then(settings => {
+        const btn = document.getElementById('collectionToggleBtn');
+        if (!btn) return;
+        if (settings.collectionActive) {
+            btn.className = 'px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-xl transition-all flex items-center gap-1.5 btn-press';
+            btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span class="hidden sm:inline">หยุดเรียกเก็บ</span>`;
+        } else {
+            btn.className = 'px-3 py-2 text-sm text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all flex items-center gap-1.5 btn-press';
+            btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span class="hidden sm:inline">เริ่มเรียกเก็บเงิน</span>`;
+        }
+    });
+}
+
+// ==================== ADD STUDENT MODE ====================
+function switchAddMode(mode) {
+    const tabSingle = document.getElementById('tabSingle');
+    const tabBatch = document.getElementById('tabBatch');
+    const singleForm = document.getElementById('singleAddForm');
+    const batchForm = document.getElementById('batchAddForm');
+    if (mode === 'single') {
+        tabSingle.className = 'flex-1 py-2 rounded-lg text-sm font-medium transition-all bg-white card-shadow text-secondary';
+        tabBatch.className = 'flex-1 py-2 rounded-lg text-sm font-medium transition-all text-gray-400 hover:text-gray-600';
+        singleForm.classList.remove('hidden');
+        batchForm.classList.add('hidden');
+    } else {
+        tabBatch.className = 'flex-1 py-2 rounded-lg text-sm font-medium transition-all bg-white card-shadow text-blue-500';
+        tabSingle.className = 'flex-1 py-2 rounded-lg text-sm font-medium transition-all text-gray-400 hover:text-gray-600';
+        batchForm.classList.remove('hidden');
+        singleForm.classList.add('hidden');
+    }
+}
+
 // ==================== ADMIN DASHBOARD ====================
 function renderAdminDashboard() {
     updateStats();
     renderStudentList();
     loadSettingsToForm();
     updateAdminQrPreview();
+    updateCollectionBtn();
 }
 
 function updateStats() {
@@ -233,6 +305,19 @@ function updateStats() {
         document.getElementById('statPaid').textContent = stats.paid;
         document.getElementById('statPending').textContent = stats.pending;
         document.getElementById('statUnpaid').textContent = stats.unpaid;
+        // Calculate money totals
+        DB.getSettings().then(settings => {
+            const stdAmount = settings.amount || 0;
+            let totalOwed = 0;
+            let totalCollected = 0;
+            stats.list.forEach(s => {
+                const amt = s.customAmount && s.customAmount > 0 ? s.customAmount : stdAmount;
+                totalOwed += amt;
+                if (s.status === 'paid' || s.status === 'cash') totalCollected += amt;
+            });
+            document.getElementById('statTotalOwed').textContent = totalOwed.toLocaleString();
+            document.getElementById('statTotalCollected').textContent = totalCollected.toLocaleString();
+        });
     });
 }
 
@@ -248,42 +333,52 @@ function renderStudentList() {
             return;
         }
         emptyDiv.classList.add('hidden');
-        tbody.innerHTML = students.map(s => {
-            const sc = getStatusConfig(s.status);
-            const amountDisplay = s.customAmount
-                ? `<span class="text-primary font-semibold">${s.customAmount} ฿</span> <span class="text-[10px] text-gray-400">(กำหนดเอง)</span>`
-                : `<span class="text-gray-400 text-sm">มาตรฐาน</span>`;
-            return `
-                <tr class="hover:bg-gray-50/80 transition-colors">
-                    <td class="px-6 py-3.5 text-sm font-semibold text-gray-700">${s.number}</td>
-                    <td class="px-6 py-3.5 text-sm text-gray-700">${s.name}</td>
-                    <td class="px-6 py-3.5 text-sm text-gray-400 font-mono">${s.loginId}</td>
-                    <td class="px-6 py-3.5 text-sm">${amountDisplay}</td>
-                    <td class="px-6 py-3.5">
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${sc.bg} ${sc.text}">
-                            <span class="w-1.5 h-1.5 rounded-full ${sc.dot}"></span>
-                            ${sc.label}
-                        </span>
-                    </td>
-                    <td class="px-6 py-3.5">
-                        ${s.slipImage ? `
-                            <button onclick="openSlipModal('${s.id}')" class="text-primary hover:text-primary/80 text-sm font-medium flex items-center gap-1 btn-press">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                                ดูสลิป
-                            </button>
-                        ` : '<span class="text-gray-300 text-sm">—</span>'}
-                    </td>
-                    <td class="px-6 py-3.5">
-                        <div class="flex items-center gap-1.5">
-                            ${s.status === 'unpaid' ? `<button onclick="openCashModal('${s.id}')" class="px-2.5 py-1.5 bg-emerald-50 text-emerald-600 rounded-lg text-xs font-medium hover:bg-emerald-100 transition-all btn-press">💵 เงินสด</button>` : ''}
-                            ${s.status === 'pending' ? `<button onclick="openSlipModal('${s.id}')" class="px-2.5 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-100 transition-all btn-press">🔍 ตรวจสอบ</button>` : ''}
-                            <button onclick="openEditAmountModal('${s.id}')" class="px-2.5 py-1.5 bg-purple-50 text-purple-600 rounded-lg text-xs font-medium hover:bg-purple-100 transition-all btn-press" title="กำหนดจำนวนเงิน">💰</button>
-                            <button onclick="deleteStudent('${s.id}')" class="px-2.5 py-1.5 bg-red-50 text-red-500 rounded-lg text-xs font-medium hover:bg-red-100 transition-all btn-press" title="ลบ">🗑️</button>
-                        </div>
-                    </td>
-                </tr>
-            `;
-        }).join('');
+        // Sort by number
+        students.sort((a, b) => a.number - b.number);
+        // Check slip images for all students
+        const slipChecks = students.map(s => DB.getSlipImage(s.id).then(img => ({ id: s.id, hasSlip: !!img })));
+        Promise.all(slipChecks).then(slipResults => {
+            const slipMap = {};
+            slipResults.forEach(r => { slipMap[r.id] = r.hasSlip; });
+            tbody.innerHTML = students.map(s => {
+                const sc = getStatusConfig(s.status);
+                const hasSlip = slipMap[s.id];
+                const amountDisplay = s.customAmount
+                    ? `<span class="text-primary font-semibold">${s.customAmount} ฿</span> <span class="text-[10px] text-gray-400">(กำหนดเอง)</span>`
+                    : `<span class="text-gray-400 text-sm">มาตรฐาน</span>`;
+                return `
+                    <tr class="hover:bg-gray-50/80 transition-colors">
+                        <td class="px-6 py-3.5 text-sm font-semibold text-gray-700">${s.number}</td>
+                        <td class="px-6 py-3.5 text-sm ${s.name ? 'text-gray-700' : 'text-gray-300 italic'}">${s.name || 'ยังไม่ได้ตั้งชื่อ'}</td>
+                        <td class="px-6 py-3.5 text-sm text-gray-400 font-mono">${s.loginId || '—'}</td>
+                        <td class="px-6 py-3.5 text-sm">${amountDisplay}</td>
+                        <td class="px-6 py-3.5">
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${sc.bg} ${sc.text}">
+                                <span class="w-1.5 h-1.5 rounded-full ${sc.dot}"></span>
+                                ${sc.label}
+                            </span>
+                        </td>
+                        <td class="px-6 py-3.5">
+                            ${hasSlip ? `
+                                <button onclick="openSlipModal('${s.id}')" class="text-primary hover:text-primary/80 text-sm font-medium flex items-center gap-1 btn-press">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                    ดูสลิป
+                                </button>
+                            ` : '<span class="text-gray-300 text-sm">—</span>'}
+                        </td>
+                        <td class="px-6 py-3.5">
+                            <div class="flex items-center gap-1.5">
+                                ${s.status === 'unpaid' ? `<button onclick="openCashModal('${s.id}')" class="px-2.5 py-1.5 bg-emerald-50 text-emerald-600 rounded-lg text-xs font-medium hover:bg-emerald-100 transition-all btn-press">💵 เงินสด</button>` : ''}
+                                ${s.status === 'pending' ? `<button onclick="openSlipModal('${s.id}')" class="px-2.5 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-100 transition-all btn-press">🔍 ตรวจสอบ</button>` : ''}
+                                <button onclick="openEditAmountModal('${s.id}')" class="px-2.5 py-1.5 bg-purple-50 text-purple-600 rounded-lg text-xs font-medium hover:bg-purple-100 transition-all btn-press" title="กำหนดจำนวนเงิน">💰</button>
+                                <button onclick="openEditStudentModal('${s.id}')" class="px-2.5 py-1.5 bg-sky-50 text-sky-600 rounded-lg text-xs font-medium hover:bg-sky-100 transition-all btn-press" title="แก้ไขชื่อ/เลขประจำตัว">✏️</button>
+                                <button onclick="deleteStudent('${s.id}')" class="px-2.5 py-1.5 bg-red-50 text-red-500 rounded-lg text-xs font-medium hover:bg-red-100 transition-all btn-press" title="ลบ">🗑️</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        });
     });
 }
 
@@ -316,11 +411,39 @@ function addStudent(e) {
     });
 }
 
+function addBatchStudents(e) {
+    e.preventDefault();
+    const start = parseInt(document.getElementById('batchStart').value) || 1;
+    const end = parseInt(document.getElementById('batchEnd').value) || 40;
+    if (start < 1 || end < 1 || start > 99 || end > 99) { showToast('❌ กรุณากรอกเลขที่ 1-99', 'error'); return; }
+    if (start > end) { showToast('❌ เลขที่เริ่มต้นต้องน้อยกว่าหรือเท่ากับเลขที่สุดท้าย', 'error'); return; }
+    const count = end - start + 1;
+    if (count > 99) { showToast('❌ ไม่สามารถสร้างมากกว่า 99 คนพร้อมกัน', 'error'); return; }
+
+    DB.getStudents().then(existing => {
+        const usedNumbers = new Set(existing.map(s => s.number));
+        const newStudents = [];
+        for (let i = start; i <= end; i++) {
+            if (usedNumbers.has(i)) { showToast(`❌ เลขที่ ${i} มีอยู่ในระบบแล้ว`, 'error'); return; }
+            newStudents.push({ name: '', number: i, loginId: '', status: 'unpaid', bankInfo: null, paidAt: null, customAmount: null });
+        }
+
+        // Save all new students
+        const savePromises = newStudents.map(s => DB.addStudent(s));
+        Promise.all(savePromises).then(() => {
+            showToast(`✅ สร้างสมาชิก ${count} คนสำเร็จ (เลขที่ ${start}–${end})`, 'success');
+            renderAdminDashboard();
+        });
+    });
+}
+
 function deleteStudent(id) {
     DB.findStudentById(id).then(student => {
         if (!student) return;
         if (confirm(`ต้องการลบ "${student.name}" ออกจากระบบหรือไม่?`)) {
             DB.deleteStudent(id).then(() => {
+                return DB.removeSlipImage(id);
+            }).then(() => {
                 showToast(`ลบ "${student.name}" แล้ว`, 'info');
                 renderAdminDashboard();
             });
@@ -390,6 +513,52 @@ function updateAdminQrPreview() {
                 </svg>
                 <p class="text-gray-400 text-sm">ยังไม่ได้อัปโหลด QR Code</p>`;
         }
+    });
+}
+
+// ==================== EDIT STUDENT ====================
+let editStudentModalId = null;
+
+function openEditStudentModal(studentId) {
+    DB.findStudentById(studentId).then(student => {
+        if (!student) return;
+        editStudentModalId = studentId;
+        document.getElementById('editStuNumber').value = student.number || '';
+        document.getElementById('editStuName').value = student.name || '';
+        document.getElementById('editStuLoginId').value = student.loginId || '';
+        document.getElementById('editStudentModal').classList.remove('hidden');
+    });
+}
+
+function closeEditStudentModal() {
+    document.getElementById('editStudentModal').classList.add('hidden');
+    editStudentModalId = null;
+}
+
+function saveEditStudent() {
+    if (!editStudentModalId) return;
+    const number = parseInt(document.getElementById('editStuNumber').value);
+    const name = document.getElementById('editStuName').value.trim();
+    const loginId = document.getElementById('editStuLoginId').value.trim();
+    if (!number || number < 1) { showToast('❌ กรุณากรอกเลขที่ให้ถูกต้อง', 'error'); return; }
+    if (loginId && loginId.length !== 5) { showToast('❌ เลขประจำตัวต้องเป็น 5 หลัก', 'error'); return; }
+
+    DB.findStudentById(editStudentModalId).then(current => {
+        DB.getStudents().then(existing => {
+            // Check duplicate number (excluding self)
+            if (existing.find(s => s.number === number && s.id !== editStudentModalId)) {
+                showToast(`❌ เลขที่ ${number} มีอยู่ในระบบแล้ว`, 'error'); return;
+            }
+            // Check duplicate loginId (excluding self)
+            if (loginId && existing.find(s => s.loginId === loginId && s.id !== editStudentModalId)) {
+                showToast(`❌ เลขประจำตัว ${loginId} มีอยู่ในระบบแล้ว`, 'error'); return;
+            }
+            DB.updateStudent(editStudentModalId, { number, name, loginId }).then(() => {
+                showToast(`✅ แก้ไขข้อมูล "${name || 'ว่าว'}" สำเร็จ`, 'success');
+                closeEditStudentModal();
+                renderAdminDashboard();
+            });
+        });
     });
 }
 
@@ -481,21 +650,22 @@ function openSlipModal(studentId) {
     DB.findStudentById(studentId).then(student => {
         if (!student) return;
         modalStudentId = studentId;
-        document.getElementById('modalSlipImg').src = student.slipImage;
-        DB.getSettings().then(settings => {
-            const amount = student.customAmount && student.customAmount > 0 ? student.customAmount : (settings.amount || 0);
-            let infoHtml = `<div class="bg-gray-50 rounded-xl p-4 space-y-2"><p><span class="text-gray-400">จำนวนเงิน:</span> <span class="font-bold text-primary">${amount} บาท</span></p>`;
-            if (student.bankInfo) {
-                infoHtml += `<p><span class="text-gray-400">ธนาคาร:</span> <span class="font-medium text-gray-700">${student.bankInfo.bankName}</span></p>`;
-                infoHtml += `<p><span class="text-gray-400">ชื่อบัญชี:</span> <span class="font-medium text-gray-700">${student.bankInfo.accountName}</span></p>`;
-                infoHtml += `<p><span class="text-gray-400">เลขที่บัญชี:</span> <span class="font-medium text-gray-700">${student.bankInfo.accountNumber}</span></p>`;
-            }
-            infoHtml += `<p><span class="text-gray-400">เวลาโอน:</span> <span class="font-medium text-gray-700">${student.paidAt ? new Date(student.paidAt).toLocaleString('th-TH') : '-'}</span></p></div>`;
-            document.getElementById('modalSlipInfo').innerHTML = infoHtml;
-            const verifyBtn = document.getElementById('verifyBtn');
-            if (student.status === 'paid' || student.status === 'cash') verifyBtn.classList.add('hidden');
-            else verifyBtn.classList.remove('hidden');
-            document.getElementById('slipModal').classList.remove('hidden');
+        DB.getSlipImage(studentId).then(slipImg => {
+            document.getElementById('modalSlipImg').src = slipImg || '';
+            DB.getSettings().then(settings => {
+                const amount = student.customAmount && student.customAmount > 0 ? student.customAmount : (settings.amount || 0);
+                let infoHtml = `<div class="bg-gray-50 rounded-xl p-4 space-y-2"><p><span class="text-gray-400">จำนวนเงิน:</span> <span class="font-bold text-primary">${amount} บาท</span></p>`;
+                if (student.bankInfo) {
+                    infoHtml += `<p><span class="text-gray-400">ธนาคาร:</span> <span class="font-medium text-gray-700">${student.bankInfo.bankName}</span></p>`;
+                    infoHtml += `<p><span class="text-gray-400">ชื่อบัญชี:</span> <span class="font-medium text-gray-700">${student.bankInfo.accountName}</span></p>`;
+                }
+                infoHtml += `<p><span class="text-gray-400">เวลาโอน:</span> <span class="font-medium text-gray-700">${student.paidAt ? new Date(student.paidAt).toLocaleString('th-TH') : '-'}</span></p></div>`;
+                document.getElementById('modalSlipInfo').innerHTML = infoHtml;
+                const verifyBtn = document.getElementById('verifyBtn');
+                if (student.status === 'paid' || student.status === 'cash') verifyBtn.classList.add('hidden');
+                else verifyBtn.classList.remove('hidden');
+                document.getElementById('slipModal').classList.remove('hidden');
+            });
         });
     });
 }
@@ -518,6 +688,21 @@ function verifyPayment() {
     });
 }
 
+function rejectPayment() {
+    if (!modalStudentId) return;
+    DB.findStudentById(modalStudentId).then(student => {
+        if (!student) { closeSlipModal(); return; }
+        if (!confirm(`ยืนยัน: สลิปของ "${student.name}" ไม่ถูกต้อง?\n\nระบบจะ:\n- เปลี่ยนสถานะกลับเป็น "ยังไม่จ่าย"\n- ลบหลักฐานการโอนเงิน\n- แจ้งเตือนให้สมาชิกส่งสลิปใหม่`)) return;
+        DB.removeSlipImage(modalStudentId).then(() => {
+            return DB.updateStudent(modalStudentId, { status: 'unpaid', bankInfo: null, paidAt: null, slipRejected: true });
+        }).then(() => {
+            showToast(`❌ แจ้ง "${student.name}" ว่าสลิปไม่ถูกต้อง — กรุณาส่งสลิปใหม่`, 'warning');
+            renderAdminDashboard();
+            closeSlipModal();
+        });
+    });
+}
+
 // ==================== USER DASHBOARD ====================
 function renderUserDashboard() {
     if (!currentUser || currentUser.type !== 'user') return;
@@ -526,7 +711,8 @@ function renderUserDashboard() {
         DB.getQrImage().then(qrImage => {
             DB.getSettings().then(settings => {
                 const amount = student.customAmount && student.customAmount > 0 ? student.customAmount : (settings.amount || 0);
-                document.getElementById('userDisplayName').textContent = student.name;
+                const collectionActive = !!settings.collectionActive;
+                document.getElementById('userDisplayName').textContent = student.name || 'สมาชิก';
                 document.getElementById('userDisplayId').textContent = `เลขที่ ${student.number} | รหัส ${student.loginId}`;
                 const statusIcon = document.getElementById('statusIcon');
                 const statusText = document.getElementById('statusText');
@@ -535,14 +721,36 @@ function renderUserDashboard() {
                 const paidInfo = document.getElementById('paidInfo');
                 const paidInfoContent = document.getElementById('paidInfoContent');
 
+                // If collection not active, show message and hide payment
+                if (!collectionActive && student.status === 'unpaid') {
+                    statusIcon.className = 'w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center bg-gray-100';
+                    statusIcon.innerHTML = '<svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-4-4h-4a4 4 0 00-4 4v10z"/></svg>';
+                    statusText.className = 'text-xl font-bold mb-1 text-gray-500';
+                    statusText.textContent = 'ยังไม่มีการเรียกเก็บเงิน';
+                    statusSubtext.textContent = 'หัวหน้าห้องยังไม่ได้เปิดระบบเรียกเก็บเงิน กรุณารอหัวหน้าห้องแจ้งอีกครั้ง';
+                    paymentSection.classList.add('hidden');
+                    paidInfo.classList.add('hidden');
+                    return;
+                }
+
                 if (student.status === 'unpaid') {
                     statusIcon.className = 'w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center bg-red-50';
                     statusIcon.innerHTML = '<svg class="w-10 h-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
                     statusText.className = 'text-xl font-bold mb-1 text-red-500';
-                    statusText.textContent = 'ยังไม่ได้จ่ายเงิน';
-                    statusSubtext.textContent = 'กรุณาสแกน QR Code เพื่อโอนเงินหรือจ่ายเงินสดที่ครูประจำชั้น';
+                    statusText.textContent = student.slipRejected ? 'สลิปไม่ถูกต้อง ❌' : 'ยังไม่ได้จ่ายเงิน';
+                    statusSubtext.textContent = student.slipRejected ? 'หัวหน้าห้องแจ้งว่าสลิปไม่ถูกต้อง กรุณาส่งสลิปใหม่อีกครั้ง' : 'กรุณาสแกน QR Code เพื่อโอนเงินหรือจ่ายเงินสดที่ครูประจำชั้น';
                     paymentSection.classList.remove('hidden');
                     paidInfo.classList.add('hidden');
+                    // Remove old warning if any
+                    const oldWarn = paymentSection.querySelector('.slip-reject-warn');
+                    if (oldWarn) oldWarn.remove();
+                    // Show slip rejected warning
+                    if (student.slipRejected) {
+                        const warnDiv = document.createElement('div');
+                        warnDiv.className = 'slip-reject-warn bg-red-50 border border-red-200 rounded-xl p-4 mb-4 text-center fade-in';
+                        warnDiv.innerHTML = '<p class="text-red-500 font-medium text-sm">❌ สลิปก่อนหน้าไม่ถูกต้อง กรุณาส่งสลิปใหม่อีกครั้ง</p>';
+                        paymentSection.insertBefore(warnDiv, paymentSection.firstChild);
+                    }
                     if (qrImage) document.getElementById('qrCodeContainer').innerHTML = `<img src="${qrImage}" alt="QR Code" class="w-56 h-56 rounded-xl card-shadow">`;
                     else document.getElementById('qrCodeContainer').innerHTML = '<p class="text-gray-400 text-sm p-8">แอดมินยังไม่ได้อัปโหลด QR Code</p>';
                     document.getElementById('qrAmount').textContent = amount.toLocaleString();
@@ -554,7 +762,9 @@ function renderUserDashboard() {
                     statusSubtext.textContent = 'แอดมินกำลังตรวจสอบหลักฐานการโอนเงินของคุณ กรุณารอสักครู่...';
                     paymentSection.classList.add('hidden');
                     paidInfo.classList.remove('hidden');
-                    paidInfoContent.innerHTML = `<div class="bg-amber-50 border border-amber-100 rounded-xl p-4 text-center"><div class="pulse-dot inline-block w-2.5 h-2.5 bg-amber-400 rounded-full mr-2"></div><span class="text-amber-600 font-medium text-sm">อยู่ระหว่างการตรวจสอบ</span></div><p class="text-sm text-gray-400 text-center mt-2">จำนวน <span class="font-bold text-primary">${amount} บาท</span></p>${student.slipImage ? `<img src="${student.slipImage}" class="w-full rounded-xl mt-3">` : ''}${student.bankInfo ? `<div class="bg-gray-50 rounded-xl p-4 space-y-1 mt-3"><p class="text-sm"><span class="text-gray-400">ธนาคาร:</span> <span class="text-gray-600">${student.bankInfo.bankName}</span></p><p class="text-sm"><span class="text-gray-400">ชื่อบัญชี:</span> <span class="text-gray-600">${student.bankInfo.accountName}</span></p><p class="text-sm"><span class="text-gray-400">เลขที่บัญชี:</span> <span class="text-gray-600">${student.bankInfo.accountNumber}</span></p></div>` : ''}`;
+                    DB.getSlipImage(student.id).then(slipImg => {
+                        paidInfoContent.innerHTML = `<div class="bg-amber-50 border border-amber-100 rounded-xl p-4 text-center"><div class="pulse-dot inline-block w-2.5 h-2.5 bg-amber-400 rounded-full mr-2"></div><span class="text-amber-600 font-medium text-sm">อยู่ระหว่างการตรวจสอบ</span></div><p class="text-sm text-gray-400 text-center mt-2">จำนวน <span class="font-bold text-primary">${amount} บาท</span></p>${slipImg ? `<img src="${slipImg}" class="w-full rounded-xl mt-3">` : ''}${student.bankInfo ? `<div class="bg-gray-50 rounded-xl p-4 space-y-1 mt-3"><p class="text-sm"><span class="text-gray-400">ธนาคาร:</span> <span class="text-gray-600">${student.bankInfo.bankName}</span></p><p class="text-sm"><span class="text-gray-400">ชื่อบัญชี:</span> <span class="text-gray-600">${student.bankInfo.accountName}</span></p></div>` : ''}`;
+                    });
                 } else if (student.status === 'paid') {
                     statusIcon.className = 'w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center bg-emerald-50';
                     statusIcon.innerHTML = '<svg class="w-10 h-10 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
@@ -563,7 +773,9 @@ function renderUserDashboard() {
                     statusSubtext.textContent = 'ขอบคุณที่ชำระเงิน! แอดมินยืนยันการชำระเงินของคุณแล้ว';
                     paymentSection.classList.add('hidden');
                     paidInfo.classList.remove('hidden');
-                    paidInfoContent.innerHTML = `<div class="bg-emerald-50 border border-emerald-100 rounded-xl p-4 text-center"><span class="text-emerald-600 font-medium text-sm">✅ ชำระเงินสำเร็จ</span></div><p class="text-sm text-gray-400 text-center mt-2">จำนวน <span class="font-bold text-primary">${amount} บาท</span></p>${student.slipImage ? `<img src="${student.slipImage}" class="w-full rounded-xl mt-3">` : ''}${student.bankInfo ? `<div class="bg-gray-50 rounded-xl p-4 space-y-1 mt-3"><p class="text-sm"><span class="text-gray-400">ธนาคาร:</span> <span class="text-gray-600">${student.bankInfo.bankName}</span></p><p class="text-sm"><span class="text-gray-400">ชื่อบัญชี:</span> <span class="text-gray-600">${student.bankInfo.accountName}</span></p><p class="text-sm"><span class="text-gray-400">เลขที่บัญชี:</span> <span class="text-gray-600">${student.bankInfo.accountNumber}</span></p></div>` : ''}`;
+                    DB.getSlipImage(student.id).then(slipImg => {
+                        paidInfoContent.innerHTML = `<div class="bg-emerald-50 border border-emerald-100 rounded-xl p-4 text-center"><span class="text-emerald-600 font-medium text-sm">✅ ชำระเงินสำเร็จ</span></div><p class="text-sm text-gray-400 text-center mt-2">จำนวน <span class="font-bold text-primary">${amount} บาท</span></p>${slipImg ? `<img src="${slipImg}" class="w-full rounded-xl mt-3">` : ''}${student.bankInfo ? `<div class="bg-gray-50 rounded-xl p-4 space-y-1 mt-3"><p class="text-sm"><span class="text-gray-400">ธนาคาร:</span> <span class="text-gray-600">${student.bankInfo.bankName}</span></p><p class="text-sm"><span class="text-gray-400">ชื่อบัญชี:</span> <span class="text-gray-600">${student.bankInfo.accountName}</span></p></div>` : ''}`;
+                    });
                 } else if (student.status === 'cash') {
                     statusIcon.className = 'w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center bg-teal-50';
                     statusIcon.innerHTML = '<svg class="w-10 h-10 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>';
@@ -613,14 +825,15 @@ function uploadSlip(e) {
     if (!selectedSlipBase64) { showToast('❌ กรุณาเลือกรูปภาพสลิปก่อน', 'error'); return; }
     const bankName = document.getElementById('bankName').value;
     const accountName = document.getElementById('accountName').value.trim();
-    const accountNumber = document.getElementById('accountNumber').value.trim();
-    if (!bankName || !accountName || !accountNumber) { showToast('❌ กรุณากรอกข้อมูลให้ครบทุกช่อง', 'error'); return; }
+    if (!bankName || !accountName) { showToast('❌ กรุณากรอกข้อมูลให้ครบทุกช่อง', 'error'); return; }
     if (!currentUser || currentUser.type !== 'user') return;
     DB.updateStudent(currentUser.studentId, {
         status: 'pending',
-        slipImage: selectedSlipBase64,
-        bankInfo: { bankName, accountName, accountNumber },
+        slipRejected: false,
+        bankInfo: { bankName, accountName, },
         paidAt: new Date().toISOString(),
+    }).then(() => {
+        return DB.saveSlipImage(currentUser.studentId, selectedSlipBase64);
     }).then(() => {
         showToast('✅ ส่งหลักฐานการโอนเงินสำเร็จ! รอแอดมินตรวจสอบ', 'success');
         selectedSlipBase64 = null;
@@ -630,9 +843,74 @@ function uploadSlip(e) {
         document.getElementById('bankInfoForm').classList.add('hidden');
         document.getElementById('bankName').value = '';
         document.getElementById('accountName').value = '';
-        document.getElementById('accountNumber').value = '';
         renderUserDashboard();
     });
+}
+
+// ==================== JSON EDITOR ====================
+function openJsonEditor() {
+    DB.getStudents().then(students => {
+        const textarea = document.getElementById('jsonEditorArea');
+        textarea.value = JSON.stringify(students, null, 2);
+        document.getElementById('jsonError').classList.add('hidden');
+        document.getElementById('jsonModal').classList.remove('hidden');
+    });
+}
+
+function closeJsonEditor() {
+    document.getElementById('jsonModal').classList.add('hidden');
+}
+
+function saveJsonData() {
+    const textarea = document.getElementById('jsonEditorArea');
+    const errorDiv = document.getElementById('jsonError');
+    let data;
+    try {
+        data = JSON.parse(textarea.value);
+    } catch (e) {
+        errorDiv.textContent = '❌ JSON ไม่ถูกต้อง: ' + e.message;
+        errorDiv.classList.remove('hidden');
+        return;
+    }
+    if (!Array.isArray(data)) {
+        errorDiv.textContent = '❌ ข้อมูลต้องเป็น Array [...]';
+        errorDiv.classList.remove('hidden');
+        return;
+    }
+    // Validate each item has required fields
+    for (let i = 0; i < data.length; i++) {
+        const s = data[i];
+        if (!s.id || !s.name || !s.loginId) {
+            errorDiv.textContent = `❌ ข้อมูลลำดับ ${i + 1} ขาดฟิลด์จำเป็น (id, name, loginId)`;
+            errorDiv.classList.remove('hidden');
+            return;
+        }
+        // Ensure all fields exist with defaults
+        s.status = s.status || 'unpaid';
+        s.number = s.number || 0;
+        s.bankInfo = s.bankInfo || null;
+        s.paidAt = s.paidAt || null;
+        s.customAmount = s.customAmount || null;
+    }
+    DB.saveStudents(data).then(() => {
+        showToast(`✅ บันทึกข้อมูลสำเร็จ (${data.length} คน)`, 'success');
+        closeJsonEditor();
+        renderAdminDashboard();
+    }).catch(err => {
+        errorDiv.textContent = '❌ บันทึกไม่สำเร็จ: ' + err.message;
+        errorDiv.classList.remove('hidden');
+    });
+}
+
+function downloadJson() {
+    const textarea = document.getElementById('jsonEditorArea');
+    const blob = new Blob([textarea.value], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'classroom_students_' + new Date().toISOString().slice(0, 10) + '.json';
+    a.click();
+    URL.revokeObjectURL(url);
 }
 
 // ==================== RESET PAYMENTS ====================
@@ -654,11 +932,14 @@ function confirmResetPayments() {
         const resetStudents = students.map(s => ({
             ...s,
             status: 'unpaid',
-            slipImage: null,
             bankInfo: null,
             paidAt: null,
         }));
         DB.saveStudents(resetStudents).then(() => {
+            // Remove all slip images
+            const slipRemovals = students.map(s => DB.removeSlipImage(s.id));
+            return Promise.all(slipRemovals);
+        }).then(() => {
             showToast('🔄 รีเซตการเก็บเงินสำเร็จ! สมาชิกทุ้งคนถูกรีเซ็ตเป็น "ยังไม่จ่าย"', 'success');
             closeResetModal();
             renderAdminDashboard();
@@ -672,6 +953,8 @@ function clearAllData() {
     if (!confirm('ยืนยันอีกครั้ง: ลบข้อมูลทั้งหมดจริงๆ หรือไม่?')) return;
     if (FIREBASE_READY) {
         db.ref().remove().then(() => { currentUser = null; saveSession(); showToast('🗑️ ล้างข้อมูลทั้งหมดเรียบร้อย', 'info'); showPage('loginPage'); });
+        // Also clear localStorage slip images
+        Object.keys(localStorage).forEach(k => { if (k.startsWith('slip_')) localStorage.removeItem(k); });
     } else {
         Object.values(LS.KEYS).forEach(k => localStorage.removeItem(k));
         currentUser = null;
