@@ -81,6 +81,10 @@
         /* Badge glow */
         .badge-glow { box-shadow: 0 0 12px -3px currentColor; }
 
+        /* QR Code container responsive */
+        #qrCodeContainer { container-type: inline-size; }
+        #qrCodeContainer img { width: 100% !important; height: 100% !important; object-fit: contain !important; }
+
         /* Section card hover */
         .section-card { transition: box-shadow 0.3s ease, transform 0.3s ease; }
         .section-card:hover { box-shadow: 0 8px 30px -6px rgba(0,0,0,.1); transform: translateY(-1px); }
@@ -91,6 +95,29 @@
         /* Toast slide */
         .toast-slide { animation: toastSlide 0.4s cubic-bezier(0.4,0,0.2,1); }
         @keyframes toastSlide { from { opacity: 0; transform: translateX(100px); } to { opacity: 1; transform: translateX(0); } }
+
+        /* Skeleton loading */
+        .skeleton { background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        .skeleton-text { height: 14px; border-radius: 6px; margin-bottom: 8px; }
+        .skeleton-circle { border-radius: 50%; }
+
+        /* Count up */
+        .count-up { display: inline-block; }
+
+        /* Toast progress */
+        .toast-progress { height: 3px; border-radius: 0 0 12px 12px; animation: toastProgress 3s linear forwards; }
+        @keyframes toastProgress { from { width: 100%; } to { width: 0%; } }
+
+        /* Print styles */
+        @media print {
+            nav, .no-print, #connectionStatus, #toast, button { display: none !important; }
+            body { background: white !important; }
+            .card-shadow, .card-shadow-lg { box-shadow: none !important; border: 1px solid #e5e7eb !important; }
+        }
+
+        /* Report tab active */
+        .report-tab-active { background: white; color: #6366F1; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
     </style>
 </head>
 <body class="min-h-screen">
@@ -177,6 +204,14 @@
                     </div>
                 </div>
                 <div class="flex items-center gap-1.5 flex-wrap">
+                    <button onclick="showPage('adminPage')" class="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl transition-all flex items-center gap-1.5 btn-press">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                        <span class="hidden sm:inline">แดชบอร์ด</span>
+                    </button>
+                    <button onclick="showReportPage()" class="px-3 py-2 text-sm text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all flex items-center gap-1.5 btn-press">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                        <span class="hidden sm:inline">รายงาน</span>
+                    </button>
                     <button onclick="toggleCollection()" id="collectionToggleBtn" class="px-3 py-2 text-sm rounded-xl transition-all flex items-center gap-1.5 btn-press"></button>
                     <button onclick="manualRefresh()" id="manualRefreshBtn" title="รีเฟรชข้อมูล" class="px-3 py-2 text-sm text-sky-500 hover:bg-sky-50 rounded-xl transition-all flex items-center gap-1.5 btn-press">
                         <svg id="refreshIcon" class="w-4 h-4 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -290,6 +325,42 @@
                         <div>
                             <p class="text-[11px] text-gray-400 font-medium">เงินรวมที่จ่ายแล้ว</p>
                             <p id="statTotalCollected" class="text-xl font-bold text-teal-600">0</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Progress Section -->
+            <div class="grid lg:grid-cols-1 gap-6">
+                <!-- Progress Bar -->
+                <div class="bg-white rounded-2xl p-5 card-shadow border border-gray-100/50 section-card">
+                    <h3 class="font-bold text-gray-800 mb-4 flex items-center gap-2 text-sm">
+                        <div class="w-8 h-8 bg-gradient-to-br from-emerald-100 to-green-100 rounded-lg flex items-center justify-center">
+                            <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        </div>
+                        ความคืบหน้าการเก็บเงิน
+                    </h3>
+                    <div class="text-center mb-4">
+                        <span id="progressPercent" class="text-4xl font-bold gradient-text">0%</span>
+                        <p class="text-xs text-gray-400 mt-1">เก็บเงินได้แล้ว <span id="progressPaidCount">0</span> จาก <span id="progressTotalCount">0</span> คน</p>
+                    </div>
+                    <div class="w-full bg-gray-100 rounded-full h-4 overflow-hidden">
+                        <div id="progressBarFill" class="progress-fill h-full rounded-full bg-gradient-to-r from-emerald-400 via-green-500 to-teal-500 relative" style="width: 0%">
+                            <div class="absolute inset-0 bg-white/20 rounded-full" style="background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%); animation: shimmer 2s infinite;"></div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 mt-4">
+                        <div class="text-center p-2 bg-emerald-50 rounded-lg">
+                            <p class="text-xs text-gray-400">จ่ายแล้ว</p>
+                            <p id="chartPaidCount" class="text-sm font-bold text-emerald-600">0</p>
+                        </div>
+                        <div class="text-center p-2 bg-amber-50 rounded-lg">
+                            <p class="text-xs text-gray-400">รอตรวจ</p>
+                            <p id="chartPendingCount" class="text-sm font-bold text-amber-600">0</p>
+                        </div>
+                        <div class="text-center p-2 bg-red-50 rounded-lg">
+                            <p class="text-xs text-gray-400">ยังไม่จ่าย</p>
+                            <p id="chartUnpaidCount" class="text-sm font-bold text-red-500">0</p>
                         </div>
                     </div>
                 </div>
@@ -517,7 +588,7 @@
                 <div class="bg-white rounded-2xl p-6 card-shadow border border-gray-100/50 text-center section-card">
                     <h3 class="font-bold text-gray-800 mb-2">สแกน QR Code เพื่อโอนเงิน</h3>
                     <p class="text-sm text-gray-400 mb-4">จำนวน <span id="qrAmount" class="font-bold text-primary text-lg">0</span> บาท</p>
-                    <div id="qrCodeContainer" class="inline-block p-5 bg-white rounded-2xl border-2 border-dashed border-gray-200">
+                    <div id="qrCodeContainer" class="inline-block p-4 bg-white rounded-2xl border-2 border-dashed border-gray-200 overflow-hidden" style="max-width: 100%; width: 768px; aspect-ratio: 768 / 1024; max-height: 1024px;">
                     </div>
                     <p class="text-xs text-gray-400 mt-3">เปิดแอปธนาคารแล้วสแกน QR Code ด้านบน</p>
                 </div>
@@ -779,6 +850,136 @@
                         บันทึก
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== REPORT PAGE ==================== -->
+    <div id="reportPage" class="hidden min-h-screen pb-8 relative z-10">
+        <!-- Top Nav -->
+        <nav class="nav-glass border-b border-gray-200/50 sticky top-0 z-50 shadow-sm shadow-gray-100/50">
+            <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between flex-wrap gap-2">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-gray-800 text-sm">รายงาน & ข้อมูล</h1>
+                        <p class="text-xs text-gray-400">สรุปภาพรวมการเก็บเงิน</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-1.5 flex-wrap">
+                    <button onclick="exportCSV()" class="px-3 py-2 text-sm text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all flex items-center gap-1.5 btn-press">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        <span class="hidden sm:inline">ดาวน์โหลด CSV</span>
+                    </button>
+                    <button onclick="printReport()" class="px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-xl transition-all flex items-center gap-1.5 btn-press">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                        <span class="hidden sm:inline">พิมพ์รายงาน</span>
+                    </button>
+                    <button onclick="showPage('adminPage')" class="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl transition-all flex items-center gap-1.5 btn-press">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                        <span class="hidden sm:inline">กลับ</span>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <div class="max-w-7xl mx-auto p-4 space-y-6">
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                <div class="stat-card shimmer-card bg-white rounded-2xl p-4 card-shadow border border-gray-100/50">
+                    <div class="flex items-center gap-3">
+                        <div class="w-11 h-11 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-violet-500/20">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        </div>
+                        <div>
+                            <p class="text-[11px] text-gray-400 font-medium">ยอดที่ต้องเก็บ</p>
+                            <p id="reportTotalOwed" class="text-xl font-bold text-violet-600">0 ฿</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="stat-card shimmer-card bg-white rounded-2xl p-4 card-shadow border border-gray-100/50">
+                    <div class="flex items-center gap-3">
+                        <div class="w-11 h-11 bg-gradient-to-br from-emerald-400 to-green-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        </div>
+                        <div>
+                            <p class="text-[11px] text-gray-400 font-medium">เก็บได้แล้ว</p>
+                            <p id="reportCollected" class="text-xl font-bold text-emerald-600">0 ฿</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="stat-card shimmer-card bg-white rounded-2xl p-4 card-shadow border border-gray-100/50">
+                    <div class="flex items-center gap-3">
+                        <div class="w-11 h-11 bg-gradient-to-br from-red-400 to-rose-600 rounded-xl flex items-center justify-center shadow-lg shadow-rose-500/20">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        </div>
+                        <div>
+                            <p class="text-[11px] text-gray-400 font-medium">ยังขาดอยู่</p>
+                            <p id="reportRemaining" class="text-xl font-bold text-rose-500">0 ฿</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="stat-card shimmer-card bg-white rounded-2xl p-4 card-shadow border border-gray-100/50">
+                    <div class="flex items-center gap-3">
+                        <div class="w-11 h-11 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        </div>
+                        <div>
+                            <p class="text-[11px] text-gray-400 font-medium">จ่ายแล้ว / ทั้งหมด</p>
+                            <p class="text-xl font-bold text-blue-600"><span id="reportPaidPeople">0</span> / <span id="reportTotalPeople">0</span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Report Table with Tabs -->
+            <div class="bg-white rounded-2xl card-shadow border border-gray-100/50 overflow-hidden">
+                <div class="p-5 border-b border-gray-100/80 bg-gradient-to-r from-white to-gray-50/50">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="font-bold text-gray-800 flex items-center gap-3">
+                            <div class="w-9 h-9 bg-gradient-to-br from-accent/15 to-amber-100 rounded-xl flex items-center justify-center">
+                                <svg class="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                            </div>
+                            รายชื่อสมาชิกทั้งหมด
+                        </h2>
+                        <span id="reportTableCount" class="text-xs text-gray-500 bg-gray-100/80 px-3 py-1.5 rounded-full font-semibold">0 คน</span>
+                    </div>
+                    <!-- Filter Tabs -->
+                    <div class="flex bg-gray-100/80 rounded-xl p-1 gap-1">
+                        <button onclick="switchReportTab('all')" id="reportTab-all" class="report-tab-active flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-200">ทั้งหมด</button>
+                        <button onclick="switchReportTab('paid')" id="reportTab-paid" class="flex-1 py-2 rounded-lg text-xs font-medium transition-all duration-200 text-gray-400 hover:text-gray-600">✅ จ่ายแล้ว</button>
+                        <button onclick="switchReportTab('pending')" id="reportTab-pending" class="flex-1 py-2 rounded-lg text-xs font-medium transition-all duration-200 text-gray-400 hover:text-gray-600">⏳ รอตรวจสอบ</button>
+                        <button onclick="switchReportTab('unpaid')" id="reportTab-unpaid" class="flex-1 py-2 rounded-lg text-xs font-medium transition-all duration-200 text-gray-400 hover:text-gray-600">❌ ยังไม่จ่าย</button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-gray-50/90">
+                            <tr>
+                                <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">เลขที่</th>
+                                <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">ชื่อ-นามสกุล</th>
+                                <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">จำนวนเงิน</th>
+                                <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">สถานะ</th>
+                                <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">เวลาจ่าย</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reportTableBody" class="divide-y divide-gray-50">
+                        </tbody>
+                    </table>
+                </div>
+                <div id="reportEmptyList" class="hidden p-16 text-center">
+                    <div class="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                    </div>
+                    <p class="text-gray-400 font-medium">ไม่มีข้อมูลในหมวดนี้</p>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="text-center text-xs text-gray-400 pb-4">
+                <p>ระบบเก็บเงินออนไลน์ห้อง 4/1 วิทย์พลังสิบ | อัปเดตล่าสุด: <span id="reportLastUpdate">—</span></p>
             </div>
         </div>
     </div>

@@ -133,16 +133,36 @@ const DB = {
 function showToast(message, type = 'success') {
     const toast = document.getElementById('toast');
     const content = document.getElementById('toastContent');
+    const icons = { success: '✅', error: '❌', info: 'ℹ️', warning: '⚠️' };
     const colors = {
         success: 'bg-emerald-500',
         error: 'bg-red-500',
         info: 'bg-blue-500',
         warning: 'bg-amber-500',
     };
-    content.className = `px-5 py-3 rounded-xl card-shadow-lg text-white font-medium fade-in ${colors[type] || colors.success}`;
-    content.textContent = message;
+    const icon = icons[type] || icons.success;
+    content.className = `px-5 py-3 rounded-xl card-shadow-lg text-white font-medium toast-slide ${colors[type] || colors.success}`;
+    content.innerHTML = `<span class="mr-2">${icon}</span>${message}<div class="toast-progress mt-2 bg-white/30 rounded-full"></div>`;
     toast.classList.remove('hidden');
-    setTimeout(() => toast.classList.add('hidden'), 3000);
+    clearTimeout(toast._timeout);
+    toast._timeout = setTimeout(() => toast.classList.add('hidden'), 3000);
+}
+
+// ==================== COUNT-UP ANIMATION ====================
+function animateCountUp(element, target, duration = 800, suffix = '') {
+    if (!element) return;
+    const start = parseInt(element.textContent.replace(/[^0-9]/g, '')) || 0;
+    if (start === target) { element.textContent = target + suffix; return; }
+    const startTime = performance.now();
+    function update(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+        const current = Math.round(start + (target - start) * eased);
+        element.textContent = current + suffix;
+        if (progress < 1) requestAnimationFrame(update);
+    }
+    requestAnimationFrame(update);
 }
 
 function switchLoginType(type) {
@@ -163,13 +183,6 @@ function switchLoginType(type) {
         userForm.classList.remove('hidden');
         adminForm.classList.add('hidden');
     }
-}
-
-function showPage(pageId) {
-    document.getElementById('loginPage').classList.add('hidden');
-    document.getElementById('adminPage').classList.add('hidden');
-    document.getElementById('userPage').classList.add('hidden');
-    document.getElementById(pageId).classList.remove('hidden');
 }
 
 // ==================== AUTHENTICATION ====================
@@ -304,10 +317,12 @@ function renderAdminDashboard() {
 
 function updateStats() {
     DB.getStats().then(stats => {
-        document.getElementById('statTotal').textContent = stats.total;
-        document.getElementById('statPaid').textContent = stats.paid;
-        document.getElementById('statPending').textContent = stats.pending;
-        document.getElementById('statUnpaid').textContent = stats.unpaid;
+        // Count-up animations
+        animateCountUp(document.getElementById('statTotal'), stats.total);
+        animateCountUp(document.getElementById('statPaid'), stats.paid);
+        animateCountUp(document.getElementById('statPending'), stats.pending);
+        animateCountUp(document.getElementById('statUnpaid'), stats.unpaid);
+
         // Calculate money totals
         DB.getSettings().then(settings => {
             const stdAmount = settings.amount || 0;
@@ -320,13 +335,50 @@ function updateStats() {
             });
             document.getElementById('statTotalOwed').textContent = totalOwed.toLocaleString();
             document.getElementById('statTotalCollected').textContent = totalCollected.toLocaleString();
+
+            // Update progress bar — stats.paid รวม cash อยู่แล้ว (getStats filters 'paid' || 'cash')
+            const doneCount = stats.paid; // จ่ายแล้วทั้งหมด (โอน + เงินสด)
+            const total = stats.total || 1;
+            const pct = Math.round((doneCount / total) * 100);
+
+            const progressEl = document.getElementById('progressPercent');
+            if (progressEl) progressEl.textContent = pct + '%';
+            const barFill = document.getElementById('progressBarFill');
+            if (barFill) barFill.style.width = pct + '%';
+            const paidEl = document.getElementById('progressPaidCount');
+            if (paidEl) paidEl.textContent = doneCount;
+            const totalEl = document.getElementById('progressTotalCount');
+            if (totalEl) totalEl.textContent = stats.total;
+
+            // Update mini counts below progress (จ่ายแล้ว = paid+cash รวม, รอตรวจ, ยังไม่จ่าย)
+            const cp = document.getElementById('chartPaidCount');
+            if (cp) cp.textContent = doneCount;
+            const cpn = document.getElementById('chartPendingCount');
+            if (cpn) cpn.textContent = stats.pending;
+            const cu = document.getElementById('chartUnpaidCount');
+            if (cu) cu.textContent = stats.unpaid;
         });
     });
 }
 
 function renderStudentList() {
+    const tbody = document.getElementById('studentTableBody');
+    // Show skeleton loading
+    if (tbody) {
+        tbody.innerHTML = Array.from({length: 6}, () => `
+            <tr class="table-row-hover">
+                <td class="px-6 py-3.5"><div class="skeleton skeleton-text" style="width:24px"></td>
+                <td class="px-6 py-3.5"><div class="skeleton skeleton-text" style="width:120px"></td>
+                <td class="px-6 py-3.5"><div class="skeleton skeleton-text" style="width:60px"></td>
+                <td class="px-6 py-3.5"><div class="skeleton skeleton-text" style="width:50px"></td>
+                <td class="px-6 py-3.5"><div class="skeleton skeleton-text" style="width:80px;height:24px;borderadius:9999px"></td>
+                <td class="px-6 py-3.5"><div class="skeleton skeleton-text" style="width:40px"></td>
+                <td class="px-6 py-3.5"><div class="skeleton skeleton-text" style="width:100px"></td>
+            </tr>
+        `).join('');
+    }
+
     DB.getStudents().then(students => {
-        const tbody = document.getElementById('studentTableBody');
         const emptyDiv = document.getElementById('emptyStudentList');
         const countSpan = document.getElementById('studentCount');
         countSpan.textContent = `${students.length} คน`;
@@ -754,7 +806,7 @@ function renderUserDashboard() {
                         warnDiv.innerHTML = '<p class="text-red-500 font-medium text-sm">❌ สลิปก่อนหน้าไม่ถูกต้อง กรุณาส่งสลิปใหม่อีกครั้ง</p>';
                         paymentSection.insertBefore(warnDiv, paymentSection.firstChild);
                     }
-                    if (qrImage) document.getElementById('qrCodeContainer').innerHTML = `<img src="${qrImage}" alt="QR Code" class="w-56 h-56 rounded-xl card-shadow">`;
+                    if (qrImage) document.getElementById('qrCodeContainer').innerHTML = `<img src="${qrImage}" alt="QR Code" class="rounded-xl" style="width:100%;height:100%;object-fit:contain;">`;
                     else document.getElementById('qrCodeContainer').innerHTML = '<p class="text-gray-400 text-sm p-8">แอดมินยังไม่ได้อัปโหลด QR Code</p>';
                     document.getElementById('qrAmount').textContent = amount.toLocaleString();
                 } else if (student.status === 'pending') {
@@ -1021,7 +1073,10 @@ function startAdminRealTimeSync() {
     stopAllSync();
     if (!FIREBASE_READY) { startPolling(); return; }
     adminListener = db.ref('students').on('value', function() {
-        if (currentUser && currentUser.type === 'admin') { renderAdminDashboard(); updateLastRefreshTime(); }
+        if (currentUser && currentUser.type === 'admin') {
+            renderAdminDashboard();
+            updateLastRefreshTime();
+        }
     });
     adminSettingsListener = db.ref('settings').on('value', function() {
         if (currentUser && currentUser.type === 'admin') { updateCollectionBtn(); updateStats(); updateLastRefreshTime(); }
@@ -1055,6 +1110,150 @@ function stopAllSync() {
     if (userStudentListener && currentUser) { db.ref('students/' + currentUser.studentId).off('value', userStudentListener); userStudentListener = null; }
     if (userSettingsListener) { db.ref('settings').off('value', userSettingsListener); userSettingsListener = null; }
     if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
+}
+
+// ==================== REPORT PAGE ====================
+let reportStudents = [];
+let reportFilter = 'all';
+let reportSettingsAmount = 0;
+
+function showReportPage() {
+    showPage('reportPage');
+    renderReportPage();
+}
+
+function renderReportPage() {
+    DB.getStudents().then(students => {
+        DB.getSettings().then(settings => {
+            reportStudents = students.sort((a, b) => a.number - b.number);
+            reportSettingsAmount = settings.amount || 0;
+
+            // Summary cards
+            const total = students.length;
+            const paid = students.filter(s => s.status === 'paid' || s.status === 'cash').length;
+            const pending = students.filter(s => s.status === 'pending').length;
+            const unpaid = students.filter(s => s.status === 'unpaid').length;
+
+            let totalOwed = 0, totalCollected = 0;
+            students.forEach(s => {
+                const amt = (s.customAmount && s.customAmount > 0) ? s.customAmount : reportSettingsAmount;
+                totalOwed += amt;
+                if (s.status === 'paid' || s.status === 'cash') totalCollected += amt;
+            });
+
+            const rOwed = document.getElementById('reportTotalOwed');
+            if (rOwed) rOwed.textContent = totalOwed.toLocaleString() + ' ฿';
+            const rCol = document.getElementById('reportCollected');
+            if (rCol) rCol.textContent = totalCollected.toLocaleString() + ' ฿';
+            const rRem = document.getElementById('reportRemaining');
+            if (rRem) rRem.textContent = Math.max(0, totalOwed - totalCollected).toLocaleString() + ' ฿';
+            const rPP = document.getElementById('reportPaidPeople');
+            if (rPP) rPP.textContent = paid;
+            const rTP = document.getElementById('reportTotalPeople');
+            if (rTP) rTP.textContent = total;
+
+            // Last update
+            const rLU = document.getElementById('reportLastUpdate');
+            if (rLU) rLU.textContent = new Date().toLocaleString('th-TH');
+
+            // Render table
+            renderReportTable();
+        });
+    });
+}
+
+function renderReportTable() {
+    const tbody = document.getElementById('reportTableBody');
+    const emptyDiv = document.getElementById('reportEmptyList');
+    const countSpan = document.getElementById('reportTableCount');
+    if (!tbody) return;
+
+    let filtered = reportStudents;
+    if (reportFilter === 'paid') filtered = reportStudents.filter(s => s.status === 'paid' || s.status === 'cash');
+    else if (reportFilter === 'pending') filtered = reportStudents.filter(s => s.status === 'pending');
+    else if (reportFilter === 'unpaid') filtered = reportStudents.filter(s => s.status === 'unpaid');
+
+    countSpan.textContent = `${filtered.length} คน`;
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = '';
+        emptyDiv.classList.remove('hidden');
+        return;
+    }
+    emptyDiv.classList.add('hidden');
+
+    tbody.innerHTML = filtered.map(s => {
+        const sc = getStatusConfig(s.status);
+        const amt = (s.customAmount && s.customAmount > 0) ? s.customAmount : reportSettingsAmount;
+        const paidTime = s.paidAt ? new Date(s.paidAt).toLocaleString('th-TH', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+        return `
+            <tr class="hover:bg-gray-50/80 transition-colors">
+                <td class="px-6 py-3 text-sm font-semibold text-gray-700">${s.number}</td>
+                <td class="px-6 py-3 text-sm ${s.name ? 'text-gray-700' : 'text-gray-300 italic'}">${s.name || 'ยังไม่ได้ตั้งชื่อ'}</td>
+                <td class="px-6 py-3 text-sm font-semibold text-gray-700">${amt.toLocaleString()} ฿</td>
+                <td class="px-6 py-3">
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${sc.bg} ${sc.text}">
+                        <span class="w-1.5 h-1.5 rounded-full ${sc.dot}"></span>${sc.label}
+                    </span>
+                </td>
+                <td class="px-6 py-3 text-sm text-gray-400">${paidTime}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function switchReportTab(filter) {
+    reportFilter = filter;
+    ['all', 'paid', 'pending', 'unpaid'].forEach(f => {
+        const tab = document.getElementById('reportTab-' + f);
+        if (!tab) return;
+        if (f === filter) tab.className = 'report-tab-active flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-200';
+        else tab.className = 'flex-1 py-2 rounded-lg text-xs font-medium transition-all duration-200 text-gray-400 hover:text-gray-600';
+    });
+    renderReportTable();
+}
+
+// ==================== EXPORT CSV ====================
+function exportCSV() {
+    DB.getStudents().then(students => {
+        DB.getSettings().then(settings => {
+            const stdAmount = settings.amount || 0;
+            const statusLabels = { paid: 'จ่ายแล้ว', pending: 'รอตรวจสอบ', unpaid: 'ยังไม่จ่าย', cash: 'เงินสด' };
+            const header = 'เลขที่,ชื่อ,เลขประจำตัว,จำนวนเงิน (บาท),สถานะ,เวลาจ่าย,ธนาคาร,ชื่อบัญชี\n';
+            const rows = students.sort((a, b) => a.number - b.number).map(s => {
+                const amt = (s.customAmount && s.customAmount > 0) ? s.customAmount : stdAmount;
+                const status = statusLabels[s.status] || s.status;
+                const paidTime = s.paidAt ? new Date(s.paidAt).toLocaleString('th-TH') : '';
+                const bank = s.bankInfo ? s.bankInfo.bankName : '';
+                const acct = s.bankInfo ? s.bankInfo.accountName : '';
+                return `${s.number},"${s.name || ''}","${s.loginId || ''}",${amt},"${status}","${paidTime}","${bank}","${acct}"`;
+            }).join('\n');
+
+            const bom = '﻿'; // UTF-8 BOM for Thai characters in Excel
+            const blob = new Blob([bom + header + rows], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'รายงานการเก็บเงิน_4-1_' + new Date().toISOString().slice(0, 10) + '.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('📥 ดาวน์โหลด CSV สำเร็จ', 'success');
+        });
+    });
+}
+
+// ==================== PRINT REPORT ====================
+function printReport() {
+    window.print();
+}
+
+// ==================== SHOW PAGE (updated) ====================
+function showPage(pageId) {
+    document.getElementById('loginPage').classList.add('hidden');
+    document.getElementById('adminPage').classList.add('hidden');
+    document.getElementById('userPage').classList.add('hidden');
+    document.getElementById('reportPage').classList.add('hidden');
+    document.getElementById(pageId).classList.remove('hidden');
 }
 
 // ==================== INITIALIZATION ====================
